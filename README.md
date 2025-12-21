@@ -38,12 +38,14 @@ project_root/
 - 既存の同名 PDF がある場合は上書き
 - 子フォルダに対象画像が 0 枚の場合はスキップして警告
 - フォルダ単位での失敗は記録し、処理は継続
+- `INPUT_DIR` が存在しない場合は自動作成し、空である旨をログに出力
 - 実行後に 成功/失敗/スキップ 数を表示
 
 ## 実行ログ例
 ```
 INFO: Input directory: C:\path\to\project\input
 INFO: Output directory: C:\path\to\project\output
+INFO: Created input directory 'C:\\path\\to\\project\\input' because it did not exist; no subfolders to process yet.
 INFO: Converting 3 image(s) in 'AAA' -> C:\path\to\project\output\AAA.pdf
 INFO: Completed 'C:\path\to\project\output\AAA.pdf'
 WARNING: Skipping 'BBB': no target images found.

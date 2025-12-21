@@ -89,8 +89,16 @@ def convert_folder_to_pdf(folder: Path, output_dir: Path) -> bool:
 def process_directories(input_dir: Path, output_dir: Path) -> ConversionStats:
     """Process each immediate subfolder of input_dir and convert to PDFs."""
     stats = ConversionStats()
-    if not input_dir.exists() or not input_dir.is_dir():
-        raise ValueError(f"Input directory does not exist or is not a directory: {input_dir}")
+    if not input_dir.exists():
+        input_dir.mkdir(parents=True, exist_ok=True)
+        logging.info(
+            "Created input directory '%s' because it did not exist; no subfolders to process yet.",
+            input_dir,
+        )
+        return stats
+
+    if not input_dir.is_dir():
+        raise ValueError(f"Input path exists but is not a directory: {input_dir}")
 
     for item in sorted(input_dir.iterdir()):
         if not item.is_dir():
