@@ -54,6 +54,12 @@ FOLDER2PDF_AUTO_REENCODE_THRESHOLD_MB=6.0
 #   使用: src\split_pdf.py（03_pdf_split.bat）
 SPLIT_OUTPUT_DIR=03_split_pdfs
 #
+# SPLIT_OCR_FOLDER_ROOT:
+#   役割: PDF分割完了後に「OCR用フォルダ（<元PDF名>/）」を作成する親フォルダ。
+#         空欄のままならフォルダ作成はスキップします。
+#   例: SPLIT_OCR_FOLDER_ROOT=${OCR_DIR}
+SPLIT_OCR_FOLDER_ROOT=
+#
 # MERGE_OUTPUT_DIR:
 #   役割: PDF結合結果の出力フォルダ。
 #   使用: src\merge_pdf.py（04_pdf_merge.bat）

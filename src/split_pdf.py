@@ -8,7 +8,7 @@ Outputs:
   <output_root>/<pdf_stem>/<pdf_stem>_01.pdf, ...
 
 After splitting, this tool *optionally* creates:
-  <OCR_DIR>/<pdf_stem>/
+  <SPLIT_OCR_FOLDER_ROOT>/<pdf_stem>/
 as a convenience for OCR workflows (best-effort; does not fail the run).
 """
 
@@ -33,7 +33,7 @@ from ref_paths import (
 
 DEFAULT_OUTPUT_DIRNAME = "03_split_pdfs"
 REF_KEY_SPLIT_OUTPUT_DIR = "SPLIT_OUTPUT_DIR"
-REF_KEY_OCR_DIR = "OCR_DIR"
+REF_KEY_POST_SPLIT_FOLDER_ROOT = "SPLIT_OCR_FOLDER_ROOT"
 
 INVALID_WINDOWS_FILENAME_CHARS = '<>:"/\\|?*'
 
@@ -129,9 +129,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Overwrite existing split PDFs if they already exist.",
     )
     parser.add_argument(
+        "--no-post-folder",
         "--no-ocr-folder",
+        dest="no_post_folder",
         action="store_true",
-        help="Do not create OCR_DIR/<pdf_stem>/ after splitting.",
+        help="Do not create post-split <pdf_stem>/ folder after splitting.",
     )
     return parser.parse_args(argv)
 
@@ -306,29 +308,38 @@ def resolve_output_root_from_ref(ref_path: Path, repo_root: Path) -> Path:
     return (configured_output_root or (repo_root / DEFAULT_OUTPUT_DIRNAME)).resolve()
 
 
-def resolve_ocr_dir_from_ref(ref_path: Path) -> Tuple[Optional[Path], str]:
+def resolve_post_split_folder_root_from_ref(ref_path: Path) -> Tuple[Optional[Path], str]:
     config = read_reference_text_best_effort(ref_path)
     if not config:
         return None, f"settings file not found or invalid: {ref_path}"
 
     try:
-        ocr_value = resolve_ref_value(config, REF_KEY_OCR_DIR, default="", required=False)
+        root_value = resolve_ref_value(
+            config,
+            REF_KEY_POST_SPLIT_FOLDER_ROOT,
+            default="",
+            required=False,
+        )
     except Exception as exc:
-        return None, f"OCR_DIR could not be resolved: {exc}"
+        return None, f"{REF_KEY_POST_SPLIT_FOLDER_ROOT} could not be resolved: {exc}"
 
-    if not ocr_value.strip():
-        return None, "OCR_DIR is empty."
+    if not root_value.strip():
+        return None, f"{REF_KEY_POST_SPLIT_FOLDER_ROOT} is empty."
 
-    ocr_dir = resolve_configured_path(ref_path, ocr_value)
-    if not ocr_dir.exists() or not ocr_dir.is_dir():
-        return None, f"OCR_DIR does not exist or is not a directory: {ocr_dir}"
+    root_dir = resolve_configured_path(ref_path, root_value)
+    try:
+        root_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        return None, f"{REF_KEY_POST_SPLIT_FOLDER_ROOT} could not be created: {root_dir} ({exc})"
+    if not root_dir.exists() or not root_dir.is_dir():
+        return None, f"{REF_KEY_POST_SPLIT_FOLDER_ROOT} is not a directory: {root_dir}"
 
-    return ocr_dir, ""
+    return root_dir, ""
 
 
-def ensure_ocr_folder(ocr_dir: Path, pdf_stem: str) -> Tuple[bool, str]:
+def ensure_post_split_folder(root_dir: Path, pdf_stem: str) -> Tuple[bool, str]:
     folder_name = sanitize_dirname(pdf_stem)
-    target_dir = ocr_dir / folder_name
+    target_dir = root_dir / folder_name
     try:
         if target_dir.exists():
             if target_dir.is_dir():
@@ -427,16 +438,16 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"[FAIL] {pdf_path.name} : {exc}")
             failed.append(f"{pdf_path.name} : {exc}")
 
-    if not args.no_ocr_folder:
-        ocr_dir, reason = resolve_ocr_dir_from_ref(ref_path)
+    if not args.no_post_folder:
+        root_dir, reason = resolve_post_split_folder_root_from_ref(ref_path)
         print("")
-        if ocr_dir is None:
-            print(f"[OCR] SKIP: {reason}")
+        if root_dir is None:
+            print(f"[POST] SKIP: {reason}")
         else:
-            print(f"[OCR] OCR_DIR={ocr_dir}")
+            print(f"[POST] ROOT={root_dir}")
             for pdf_path in ok_paths:
-                ok2, msg = ensure_ocr_folder(ocr_dir, pdf_path.stem)
-                print(("[OCR] OK " if ok2 else "[OCR] FAIL ") + f"{pdf_path.stem} : {msg}")
+                ok2, msg = ensure_post_split_folder(root_dir, pdf_path.stem)
+                print(("[POST] OK " if ok2 else "[POST] FAIL ") + f"{pdf_path.stem} : {msg}")
 
     print("")
     print(f"[SUMMARY] total={len(readable)} ok={len(ok_paths)} fail={len(failed)} parts={parts}")

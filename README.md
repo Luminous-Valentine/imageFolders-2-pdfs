@@ -59,9 +59,10 @@ pip install -r requirements.txt
 - `FOLDER2PDF_JPEG_QUALITY`: 再エンコード時のJPEG品質（1〜100）
 - `FOLDER2PDF_MAX_LONG_EDGE`: 再エンコード時の最大長辺px（0=自動）
 - `FOLDER2PDF_AUTO_REENCODE_THRESHOLD_MB`: `auto` 時にPNGを再エンコードするサイズ閾値（MB）
-- `OCR_DIR`: OCR済みPDFの置き場（照合/抽出/分割後フォルダ作成で利用）
+- `OCR_DIR`: OCR済みPDFの置き場（照合/抽出で利用）
 - `MATCHED_DIR`: OCR済みと一致したPDFの移動先
 - `SPLIT_OUTPUT_DIR`: PDF分割結果の出力先（`src\\split_pdf.py`）
+- `SPLIT_OCR_FOLDER_ROOT`: 分割完了後に `<元PDF名>/` フォルダを作成する親フォルダ（空欄ならスキップ、`${OCR_DIR}` 等の参照も可）
 - `MERGE_OUTPUT_DIR`: PDF結合結果の出力先（`src\\merge_pdf.py`）
 - `EXTRACT_INPUT_DIR`: 文字抽出（PDF→TXT）の入力フォルダ
 - `EXTRACT_OUTPUT_DIR`: 文字抽出（PDF→TXT）の出力フォルダ
@@ -194,7 +195,7 @@ pip install -r requirements.txt
 1. 検出したPDFのサイズ/ページ数を一覧表示
 2. 分割数を入力
 3. 分割処理を実行（出力は `SPLIT_OUTPUT_DIR`）
-4. 分割完了後、`OCR_DIR\\<元PDF名(拡張子なし)>\\` を作成（`OCR_DIR` が有効な場合のみ。無効なら警告表示して続行）
+4. 分割完了後、`SPLIT_OCR_FOLDER_ROOT\\<元PDF名(拡張子なし)>\\` を作成（`SPLIT_OCR_FOLDER_ROOT` が空欄ならスキップ）
 
 ### Pythonを直接実行する場合
 
