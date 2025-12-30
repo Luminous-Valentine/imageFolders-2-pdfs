@@ -1,0 +1,79 @@
+﻿# Ignore sample input assets; keep placeholder for directory structure
+input/**
+!input/.gitkeep
+
+images_input/**
+!images_input/.gitkeep
+01_images_input/**
+!01_images_input/.gitkeep
+
+# Ignore generated PDF outputs; keep placeholder for directory structure
+output/**
+!output/.gitkeep
+
+pdf_output/**
+!pdf_output/.gitkeep
+01_pdf_output/**
+!01_pdf_output/.gitkeep
+
+# Ignore extracted texts; keep placeholder for directory structure
+extracted_texts/**
+!extracted_texts/.gitkeep
+05_extracted_texts/**
+!05_extracted_texts/.gitkeep
+
+# Ignore split PDF outputs; keep placeholder for directory structure
+divided_pdfs/**
+!divided_pdfs/.gitkeep
+03_divided_pdfs/**
+!03_divided_pdfs/.gitkeep
+
+split_pdfs/**
+!split_pdfs/.gitkeep
+03_split_pdfs/**
+!03_split_pdfs/.gitkeep
+
+# Ignore merged PDF outputs; keep placeholder for directory structure
+merged_pdfs/**
+!merged_pdfs/.gitkeep
+04_merged_pdfs/**
+!04_merged_pdfs/.gitkeep
+
+# Local config (stores absolute path)
+reference_dir.txt
+
+# Destination for matched PDFs
+scaned_pdfs/**
+!scaned_pdfs/.gitkeep
+
+matched_pdfs/**
+!matched_pdfs/.gitkeep
+02_matched_pdfs/**
+!02_matched_pdfs/.gitkeep
+
+# Local config (directory settings; may include absolute paths)
+reference_paths.txt
+tool_settings.txt
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test/lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
+
+# OS / Explorer
+.DS_Store
+Thumbs.db
+desktop.ini
+
