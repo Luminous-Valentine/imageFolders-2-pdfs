@@ -13,6 +13,7 @@ Run via PowerShell launcher:
 from __future__ import annotations
 
 import argparse
+import locale
 import re
 import sys
 from dataclasses import dataclass
@@ -170,6 +171,81 @@ def gather_images(folder: Path) -> List[Path]:
     return sorted(images, key=lambda p: natural_key(p.name))
 
 
+def _read_text_with_fallback(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        encoding = locale.getpreferredencoding(False) or "utf-8"
+        return path.read_text(encoding=encoding)
+
+
+def read_paths_file(path: Path) -> List[Path]:
+    if not path.exists():
+        raise FileNotFoundError(f"--folders-file not found: {path}")
+    if path.is_dir():
+        raise IsADirectoryError(f"--folders-file is a directory: {path}")
+
+    content = _read_text_with_fallback(path)
+    paths: List[Path] = []
+    for raw_line in re.split(r"\r?\n", content):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        unquoted = line.strip().strip('"')
+        if unquoted:
+            paths.append(Path(unquoted))
+    return paths
+
+
+def expand_target_folders(inputs: Sequence[Path]) -> Tuple[List[Path], List[str], List[str]]:
+    folders: List[Path] = []
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    seen: set[str] = set()
+
+    def add_folder(path: Path) -> None:
+        try:
+            resolved = str(path.resolve())
+        except Exception:
+            resolved = str(path)
+        key = resolved.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        folders.append(path)
+
+    for raw in inputs:
+        path = Path(str(raw)).expanduser()
+        if not path.exists():
+            errors.append(f"not found: {path}")
+            continue
+        if not path.is_dir():
+            warnings.append(f"skipped (not a directory): {path}")
+            continue
+
+        direct_images = [p for p in path.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+        if direct_images:
+            add_folder(path)
+            continue
+
+        subfolders = [p for p in path.iterdir() if p.is_dir()]
+        if not subfolders:
+            warnings.append(f"no images found under: {path}")
+            continue
+
+        added_any = False
+        for sub in sorted(subfolders, key=lambda p: natural_key(p.name)):
+            sub_images = [p for p in sub.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+            if sub_images:
+                add_folder(sub)
+                added_any = True
+        if not added_any:
+            warnings.append(f"no image folders found under: {path}")
+
+    return folders, errors, warnings
+
+
 def resolve_dirs_from_ref(ref_path: Path) -> Tuple[Path, Path]:
     config = read_reference_text_best_effort(ref_path)
     input_value = (
@@ -192,10 +268,26 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("input_dir", nargs="?", type=Path, help="Root folder containing image subfolders.")
     parser.add_argument("output_dir", nargs="?", type=Path, help="Output folder for generated PDFs.")
     parser.add_argument(
+        "folders",
+        nargs="*",
+        type=Path,
+        help=(
+            "Optional target image folders. If provided, only these folders are converted "
+            "(INPUT_DIR is ignored). You can also pass a parent folder; its direct subfolders "
+            "that contain images are treated as targets."
+        ),
+    )
+    parser.add_argument(
         "--ref",
         type=Path,
         default=None,
         help="Settings file (.txt). Default: ./tool_settings.txt (fallback: ./reference_paths.txt).",
+    )
+    parser.add_argument(
+        "--folders-file",
+        type=Path,
+        default=None,
+        help="Optional text file containing target folder paths (one per line).",
     )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing PDFs.")
     parser.add_argument("--dpi", type=int, default=300, help="DPI used to determine PDF page size (default: 300).")
@@ -267,6 +359,34 @@ def main(argv: Optional[List[str]] = None) -> int:
     repo_root = Path(__file__).resolve().parent.parent
     ref_path = (args.ref or default_ref_path(repo_root=repo_root)).resolve()
 
+    if args.folders_file and args.folders:
+        print("[ARGS] ERROR: use either --folders-file or positional folders, not both.")
+        return 1
+
+    explicit_folders: Optional[List[Path]] = None
+    if args.folders_file or args.folders:
+        try:
+            raw_inputs = read_paths_file(args.folders_file) if args.folders_file else list(args.folders)
+            explicit_folders, errors, warnings = expand_target_folders(raw_inputs)
+        except Exception as exc:
+            print(f"[ARGS] ERROR: {exc}")
+            return 1
+
+        for msg in warnings:
+            print(f"[ARGS] WARN: {msg}")
+
+        if errors:
+            print("[ARGS] ERROR: invalid folder paths")
+            for msg in errors:
+                print(f"  - {msg}")
+            return 1
+
+        if not explicit_folders:
+            print("[ARGS] ERROR: no image folders found in inputs.")
+            return 1
+
+        print("[ARGS] Using explicit folders; INPUT_DIR is ignored.")
+
     if args.input_dir is None or args.output_dir is None:
         input_dir, output_dir = resolve_dirs_from_ref(ref_path)
         if args.input_dir is not None:
@@ -277,9 +397,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         input_dir = Path(strip_quotes(str(args.input_dir))).resolve()
         output_dir = Path(strip_quotes(str(args.output_dir))).resolve()
 
-    if not input_dir.exists() or not input_dir.is_dir():
-        print(f"[ERROR] input_dir not found or not a directory: {input_dir}")
-        return 1
+    if explicit_folders is None:
+        if not input_dir.exists() or not input_dir.is_dir():
+            print(f"[ERROR] input_dir not found or not a directory: {input_dir}")
+            return 1
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -291,7 +412,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         auto_reencode_threshold_bytes=int(float(args.auto_reencode_threshold_mb) * 1024 * 1024),
     )
 
-    folders = gather_folders(input_dir)
+    folders = explicit_folders if explicit_folders is not None else gather_folders(input_dir)
     summary = RunSummary(total_folders=len(folders))
 
     print(f"[INFO] input_dir={input_dir}")
@@ -299,8 +420,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[INFO] folders={len(folders)}")
     print(f"[INFO] dpi={opts.dpi} optimize_mode={opts.optimize_mode} jpeg_quality={opts.jpeg_quality}")
 
+    used_out_names: dict[str, int] = {}
+
     for folder in folders:
-        out_name = f"{sanitize_filename(folder.name)}.pdf"
+        base_stem = sanitize_filename(folder.name)
+        stem_key = base_stem.lower()
+        if stem_key in used_out_names:
+            used_out_names[stem_key] += 1
+            out_name = f"{base_stem}__{used_out_names[stem_key]}.pdf"
+        else:
+            used_out_names[stem_key] = 1
+            out_name = f"{base_stem}.pdf"
         out_path = output_dir / out_name
 
         try:

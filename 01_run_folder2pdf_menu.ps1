@@ -202,6 +202,23 @@ function Read-LineDefault {
     return $raw.Trim()
 }
 
+function Parse-DroppedPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    $t = $Text.Trim()
+    if ([string]::IsNullOrWhiteSpace($t)) { return @() }
+
+    $matches = [regex]::Matches($t, '"([^"]+)"')
+    if ($matches.Count -gt 0) {
+        return @($matches | ForEach-Object { $_.Groups[1].Value.Trim() } | Where-Object { $_ })
+    }
+
+    return @($t -split '\s+' | ForEach-Object { $_.Trim().Trim('"') } | Where-Object { $_ })
+}
+
 $scriptRoot = Get-ScriptRoot
 $configPath = Ensure-SettingsFile -ScriptRoot $scriptRoot
 $config = Read-ReferencePaths -ConfigPath $configPath
@@ -254,6 +271,7 @@ $optimize = $defaultOptimize
 $jpegQuality = $defaultJpegQuality
 $maxLongEdge = $defaultMaxLongEdge
 $thresholdMb = $defaultThresholdMb
+$foldersFile = $null
 
 if ($choice -eq '1') {
     $method = 'img2pdf'
@@ -275,6 +293,22 @@ if ($choice -eq '1') {
         $jpegQuality = Parse-Int -Value (Read-LineDefault -Prompt "JPEG quality (1-100)" -Default ([string]$defaultJpegQuality)) -Default $defaultJpegQuality
         $maxLongEdge = Parse-Int -Value (Read-LineDefault -Prompt "max-long-edge (px, 0=自動)" -Default ([string]$defaultMaxLongEdge)) -Default $defaultMaxLongEdge
         $thresholdMb = Parse-Double -Value (Read-LineDefault -Prompt "auto-reencode-threshold-mb (PNGのみ, auto時)" -Default ([string]$defaultThresholdMb)) -Default $defaultThresholdMb
+
+        Write-Host ""
+        Write-Host "対象の画像フォルダをドラッグ＆ドロップして Enter（複数OK）"
+        Write-Host "Enterだけなら INPUT_DIR 配下を全て処理します。"
+        $rawTargets = Read-Host "フォルダ(Enter=デフォルト)"
+        if ($null -eq $rawTargets) { $rawTargets = '' }
+        $rawTargets = $rawTargets.Trim()
+
+        if (-not [string]::IsNullOrWhiteSpace($rawTargets)) {
+            $targets = Parse-DroppedPaths -Text $rawTargets
+            if ($targets.Count -gt 0) {
+                $foldersFile = Join-Path $env:TEMP ("folder2pdf_folders_{0}_{1}.txt" -f $PID, (Get-Random))
+                Set-Content -LiteralPath $foldersFile -Value $targets -Encoding UTF8
+                Write-Host ("[INFO] 対象フォルダ: {0} 件" -f $targets.Count)
+            }
+        }
     }
 }
 
@@ -309,7 +343,14 @@ $argsList = @(
     '--auto-reencode-threshold-mb', [string]$thresholdMb
 )
 if ($overwrite) { $argsList += '--overwrite' }
+if ($foldersFile) { $argsList += @('--folders-file', $foldersFile) }
 
-& python $py @argsList
-exit $LASTEXITCODE
+try {
+    & python $py @argsList
+    exit $LASTEXITCODE
+} finally {
+    if ($foldersFile -and (Test-Path -LiteralPath $foldersFile)) {
+        Remove-Item -LiteralPath $foldersFile -Force -ErrorAction SilentlyContinue
+    }
+}
 

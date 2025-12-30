@@ -103,6 +103,7 @@ pip install -r requirements.txt
 - Enterだけ: `tool_settings.txt` のデフォルト設定で実行
 - `3` を選ぶ: オプションを指定して実行
 - `2` を選ぶ: Carrier方式（テンプレPDF差し替え）で実行（デフォルトではありません）
+  - `3` の場合、最後に「対象の画像フォルダ」をドラッグ＆ドロップで指定できます（Enterだけなら `INPUT_DIR` 配下を全て処理）
 
 内部的には PowerShell 経由で `src\\folder2pdf.py`（または `src\\folder2pdf_carrier.py`）を呼びます。
 
