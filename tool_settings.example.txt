@@ -1,82 +1,81 @@
-# Directory configuration for this repository.
-# Lines are KEY=VALUE. Blank lines and lines starting with # are ignored.
-# Values can also reference other keys:
-# - KEY-as-value: EXTRACT_INPUT_DIR=INPUT_DIR
-# - ${KEY} syntax: EXTRACT_INPUT_DIR=${INPUT_DIR}
+# このリポジトリの設定ファイル（例）です。
+# 行は KEY=VALUE 形式です。空行と # で始まる行は無視されます。
+# 値は他のキーを参照できます:
+# - キー名を値にする形式: EXTRACT_INPUT_DIR=INPUT_DIR
+# - ${KEY} 形式: EXTRACT_INPUT_DIR=${INPUT_DIR}
 #
 # INPUT_DIR:
-#   Role: Folder that contains image subfolders to convert into PDFs.
-#   Used by: folder2pdf.py (via 01_images_to_pdf.bat / 01_run_folder2pdf.ps1)
+#   役割: 画像フォルダ（サブフォルダ群）を置く親フォルダ（画像→PDFの入力）。
+#   使用: src\folder2pdf.py（01_images_to_pdf.bat / 01_run_folder2pdf.ps1）
 INPUT_DIR=01_images_input
 #
 # OUTPUT_DIR:
-#   Role: Folder where folder2pdf.py writes generated PDFs.
-#   Used by: folder2pdf.py and move_matched_pdfs.py
+#   役割: 画像→PDFの出力フォルダ。
+#   使用: src\folder2pdf.py / src\move_matched_pdfs.py
 OUTPUT_DIR=01_pdf_output
 #
 # FOLDER2PDF_DEFAULT_METHOD:
-#   Role: Default conversion method for 01_images_to_pdf.bat menu.
-#   Values: img2pdf (default) / carrier
+#   役割: 01_images_to_pdf.bat のデフォルト方式。
+#   値: img2pdf（推奨/デフォルト） / carrier
 FOLDER2PDF_DEFAULT_METHOD=img2pdf
 #
 # FOLDER2PDF_OVERWRITE:
-#   Role: Default overwrite behavior for folder2pdf.py (true/false).
+#   役割: 既存PDFを上書きするか（true/false）。
 FOLDER2PDF_OVERWRITE=false
 #
 # FOLDER2PDF_DPI:
-#   Role: Default DPI used to determine PDF physical size in img2pdf mode.
+#   役割: img2pdf方式でPDF上の物理サイズ計算に使うDPI（デフォルト）。
 FOLDER2PDF_DPI=300
 #
 # FOLDER2PDF_OPTIMIZE_MODE:
-#   Role: Default size/quality mode for img2pdf conversion.
-#   Values: lossless / auto / size
+#   役割: img2pdf方式のサイズ/画質モード（デフォルト）。
+#   値: lossless / auto / size
 FOLDER2PDF_OPTIMIZE_MODE=auto
 #
 # FOLDER2PDF_JPEG_QUALITY:
-#   Role: Default JPEG quality when re-encoding is needed (auto/size modes).
+#   役割: 再エンコード時のJPEG品質（auto/size で必要な場合）。
 FOLDER2PDF_JPEG_QUALITY=90
 #
 # FOLDER2PDF_MAX_LONG_EDGE:
-#   Role: Max pixels for longest edge when re-encoding (0=auto).
+#   役割: 再エンコード時の最大長辺px（0=自動）。
 FOLDER2PDF_MAX_LONG_EDGE=0
 #
 # FOLDER2PDF_AUTO_REENCODE_THRESHOLD_MB:
-#   Role: In auto mode, re-encode PNG only if its file size exceeds this threshold (MB).
+#   役割: autoモード時、PNGのファイルサイズが閾値(MB)を超えた場合のみ再エンコード。
 FOLDER2PDF_AUTO_REENCODE_THRESHOLD_MB=6.0
 #
 # BASE_PDF_PATH:
-#   Role: Template PDF used by carrier mode (folder2pdf_carrier.py).
-#   Example: BASE_PDF_PATH=C:\path\to\template.pdf
+#   役割: Carrier方式（テンプレPDF差し替え）で使うテンプレPDF。
+#   例: BASE_PDF_PATH=C:\path\to\template.pdf
 #BASE_PDF_PATH=
 #
 # SPLIT_OUTPUT_DIR:
-#   Role: Folder where split_pdf.py writes split PDFs.
-#   Used by: split_pdf.py (via 03_pdf_split.bat)
+#   役割: PDF分割結果の出力フォルダ。
+#   使用: src\split_pdf.py（03_pdf_split.bat）
 SPLIT_OUTPUT_DIR=03_split_pdfs
 #
 # MERGE_OUTPUT_DIR:
-#   Role: Folder where merge_pdf.py writes merged PDFs.
-#   Used by: merge_pdf.py (via 04_pdf_merge.bat)
+#   役割: PDF結合結果の出力フォルダ。
+#   使用: src\merge_pdf.py（04_pdf_merge.bat）
 MERGE_OUTPUT_DIR=04_merged_pdfs
 #
 # OCR_DIR:
-#   Role: Folder where your Japanese-OCR software saves converted PDFs.
-#   Used by: move_matched_pdfs.py as the comparison source.
-#   Note: Current implementation checks only PDFs directly under this folder (no recursion).
+#   役割: OCRソフトが出力したPDFの置き場（照合/抽出/分割後のフォルダ作成で利用）。
+#   使用: src\move_matched_pdfs.py 等
+#   注: 現状、照合は OCR_DIR 直下のPDFのみ（サブフォルダは見ません）。
 OCR_DIR=
 #
-# SCANED_DIR:
-#   Role: Folder to move matched PDFs into (created if missing).
-#   Used by: move_matched_pdfs.py
-#   Note: Key name is kept as SCANED_DIR for backward compatibility.
-SCANED_DIR=02_matched_pdfs
+# MATCHED_DIR:
+#   役割: OCR済みと一致したPDFの移動先（無ければ作成）。
+#   使用: src\move_matched_pdfs.py
+MATCHED_DIR=02_matched_pdfs
 #
 # EXTRACT_INPUT_DIR:
-#   Role: Folder containing searchable PDFs (with text layer) to extract into .txt files.
-#   Used by: extract_pdf_text.py
+#   役割: 文字抽出対象のPDFがあるフォルダ（テキストレイヤー付きPDF想定）。
+#   使用: src\extract_pdf_text.py
 EXTRACT_INPUT_DIR=${OCR_DIR}
 #
 # EXTRACT_OUTPUT_DIR:
-#   Role: Folder where extract_pdf_text.py writes generated .txt files.
-#   Used by: extract_pdf_text.py
+#   役割: 文字抽出結果（.txt）の出力フォルダ。
+#   使用: src\extract_pdf_text.py
 EXTRACT_OUTPUT_DIR=05_extracted_texts

@@ -60,7 +60,7 @@ pip install -r requirements.txt
 - `FOLDER2PDF_MAX_LONG_EDGE`: 再エンコード時の最大長辺px（0=自動）
 - `FOLDER2PDF_AUTO_REENCODE_THRESHOLD_MB`: `auto` 時にPNGを再エンコードするサイズ閾値（MB）
 - `OCR_DIR`: OCR済みPDFの置き場（照合/抽出/分割後フォルダ作成で利用）
-- `SCANED_DIR`: OCR済みと一致したPDFの移動先（スペルは既存仕様に合わせて `SCANED_DIR`）
+- `MATCHED_DIR`: OCR済みと一致したPDFの移動先
 - `SPLIT_OUTPUT_DIR`: PDF分割結果の出力先（`src\\split_pdf.py`）
 - `MERGE_OUTPUT_DIR`: PDF結合結果の出力先（`src\\merge_pdf.py`）
 - `EXTRACT_INPUT_DIR`: 文字抽出（PDF→TXT）の入力フォルダ
@@ -161,7 +161,7 @@ pip install -r requirements.txt
 
 ### 目的
 
-`OUTPUT_DIR` 内のPDFについて、`OCR_DIR` に同名PDFが存在するものを `SCANED_DIR` に移動します（ファイル名一致）。
+`OUTPUT_DIR` 内のPDFについて、`OCR_DIR` に同名PDFが存在するものを `MATCHED_DIR` に移動します（ファイル名一致）。
 
 ### 実行方法（推奨）
 
@@ -172,7 +172,7 @@ pip install -r requirements.txt
 - 比較対象:
   - 移動元: `OUTPUT_DIR`
   - 参照元: `OCR_DIR`（※ 現状は `OCR_DIR` 直下のPDFのみ。サブフォルダは見ません）
-  - 移動先: `SCANED_DIR`（未設定なら `02_matched_pdfs`）
+  - 移動先: `MATCHED_DIR`（未設定なら `02_matched_pdfs`）
 - `02_run_move_matched_pdfs.ps1` は、必要に応じてOCRフォルダパスの入力を促し、その値を `tool_settings.txt` の `OCR_DIR` に書き戻します（旧: `reference_paths.txt`）。
 
 ---

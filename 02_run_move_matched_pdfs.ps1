@@ -4,7 +4,7 @@ This launcher reads directory settings from tool_settings.txt (legacy: reference
 Directory roles (from settings file):
 - OUTPUT_DIR: folder with PDFs produced by folder2pdf.py (move source)
 - OCR_DIR: folder containing OCR-processed PDFs (comparison source)
-- SCANED_DIR: folder to move matched PDFs into (destination)
+- MATCHED_DIR: folder to move matched PDFs into (destination)
 ##>
 
 param(
@@ -173,7 +173,8 @@ if (-not $OutputDir) {
 }
 
 if (-not $DestinationDir) {
-    $destValue = $config['SCANED_DIR']
+    $destValue = $config['MATCHED_DIR']
+    if ([string]::IsNullOrWhiteSpace($destValue)) { $destValue = $config['SCANED_DIR'] }
     if ([string]::IsNullOrWhiteSpace($destValue)) { $destValue = '02_matched_pdfs' }
     $destValue = Expand-ReferenceValue -Config $config -Value $destValue
     $DestinationDir = Resolve-ConfiguredPath -ScriptRoot $scriptRoot -Value $destValue
