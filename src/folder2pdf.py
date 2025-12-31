@@ -405,14 +405,12 @@ def _jpeg_colorspace(mode: str) -> str:
     return "/DeviceRGB"
 
 
-def _flatten_image_for_png(img: Image.Image) -> Tuple[Image.Image, str, int]:
+def _flatten_image_for_png(img: Image.Image) -> Image.Image:
+    # For pikepdf /FlateDecode embedding, we deflate raw pixel bytes directly (no PNG predictors).
+    # Keep it simple and deterministic: always embed RGB 8bpc.
     img = ImageOps.exif_transpose(img)
-    if img.mode == "RGB":
-        return img, "/DeviceRGB", 3
-    if img.mode == "L":
-        return img, "/DeviceGray", 1
-    # Palette/CMYKなどはRGBに寄せる
-    return img.convert("RGB"), "/DeviceRGB", 3
+    img = flatten_to_rgb(img)
+    return img
 
 
 def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions) -> None:
@@ -443,7 +441,7 @@ def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: Conve
 
                 if opts.pikepdf_force_png:
                     # 可逆(PNG相当)で埋め込む
-                    prepared, colorspace, colors = _flatten_image_for_png(img)
+                    prepared = _flatten_image_for_png(img)
                     raw = prepared.tobytes()
                     compressed = zlib.compress(raw)
                     xobj = pikepdf.Stream(pdf, compressed)
@@ -451,17 +449,9 @@ def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: Conve
                     xobj["/Subtype"] = pikepdf.Name("/Image")
                     xobj["/Width"] = int(width_px)
                     xobj["/Height"] = int(height_px)
-                    xobj["/ColorSpace"] = pikepdf.Name(colorspace)
+                    xobj["/ColorSpace"] = pikepdf.Name("/DeviceRGB")
                     xobj["/BitsPerComponent"] = 8
                     xobj["/Filter"] = pikepdf.Name("/FlateDecode")
-                    xobj["/DecodeParms"] = pikepdf.Dictionary(
-                        {
-                            "/Predictor": 15,
-                            "/Colors": int(colors),
-                            "/BitsPerComponent": 8,
-                            "/Columns": int(width_px),
-                        }
-                    )
                 else:
                     color_space = _jpeg_colorspace(getattr(img, "mode", "") or "RGB")
                     img_bytes = img_path.read_bytes()
