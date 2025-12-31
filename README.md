@@ -53,6 +53,7 @@ pip install -r requirements.txt
 - `INPUT_DIR`: 画像フォルダ（サブフォルダ）を置く親フォルダ（画像→PDFの入力）
 - `OUTPUT_DIR`: 画像→PDFの出力フォルダ
 - `FOLDER2PDF_DEFAULT_METHOD`: `01_images_to_pdf.bat` のデフォルト方式（`img2pdf` / `carrier`）
+- `FOLDER2PDF_BACKEND`: img2pdf方式のPDF生成バックエンド（`img2pdf` / `pikepdf`）
 - `FOLDER2PDF_OVERWRITE`: 画像→PDFで既存PDFを上書きするか（`true/false`）
 - `FOLDER2PDF_DPI`: img2pdf方式のデフォルトDPI（PDF上の物理サイズ計算用）
 - `FOLDER2PDF_OPTIMIZE_MODE`: img2pdf方式のデフォルト（`lossless/auto/size`）
@@ -103,8 +104,9 @@ pip install -r requirements.txt
 
 - Enterだけ: `tool_settings.txt` のデフォルト設定で実行
 - `3` を選ぶ: オプションを指定して実行
+  - img2pdf方式は backend（`img2pdf` / `pikepdf`）を選べます（`pikepdf` はJPEGフォルダ向け）
+  - 最後に「対象の画像フォルダ」をドラッグ＆ドロップで指定できます（Enterだけなら `INPUT_DIR` 配下を全て処理）
 - `2` を選ぶ: Carrier方式（テンプレPDF差し替え）で実行（デフォルトではありません）
-  - `3` の場合、最後に「対象の画像フォルダ」をドラッグ＆ドロップで指定できます（Enterだけなら `INPUT_DIR` 配下を全て処理）
 
 内部的には PowerShell 経由で `src\\folder2pdf.py`（または `src\\folder2pdf_carrier.py`）を呼びます。
 

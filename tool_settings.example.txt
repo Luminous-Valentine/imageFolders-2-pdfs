@@ -19,6 +19,11 @@ OUTPUT_DIR=01_pdf_output
 #   値: img2pdf（推奨/デフォルト） / carrier
 FOLDER2PDF_DEFAULT_METHOD=img2pdf
 #
+# FOLDER2PDF_BACKEND:
+#   役割: img2pdf方式のPDF生成バックエンド。
+#   値: img2pdf（推奨/デフォルト） / pikepdf（JPEGをそのまま埋め込み。比較用）
+FOLDER2PDF_BACKEND=img2pdf
+#
 # FOLDER2PDF_OVERWRITE:
 #   役割: 既存PDFを上書きするか（true/false）。
 FOLDER2PDF_OVERWRITE=false

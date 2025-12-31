@@ -234,6 +234,9 @@ $defaultMethod = (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_DEFAULT_METHO
 $defaultMethod = $defaultMethod.Trim().ToLowerInvariant()
 if ($defaultMethod -notin @('img2pdf','carrier')) { $defaultMethod = 'img2pdf' }
 
+$defaultBackend = (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_BACKEND' -Default 'img2pdf').Trim().ToLowerInvariant()
+if ($defaultBackend -notin @('img2pdf','pikepdf')) { $defaultBackend = 'img2pdf' }
+
 $defaultOverwrite = Parse-Bool -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_OVERWRITE' -Default 'false') -Default $false
 $defaultDpi = Parse-Int -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_DPI' -Default '300') -Default 300
 $defaultOptimize = (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_OPTIMIZE_MODE' -Default 'auto').Trim().ToLowerInvariant()
@@ -249,7 +252,7 @@ Write-Host ("INPUT_DIR : {0}" -f $inputDir)
 Write-Host ("OUTPUT_DIR: {0}" -f $outputDir)
 Write-Host ""
 Write-Host ("デフォルト方式: {0}" -f $defaultMethod)
-Write-Host ("デフォルト設定: overwrite={0}, dpi={1}, optimize={2}, jpeg_quality={3}, max_long_edge={4}, png_threshold_mb={5}" -f $defaultOverwrite, $defaultDpi, $defaultOptimize, $defaultJpegQuality, $defaultMaxLongEdge, $defaultThresholdMb)
+Write-Host ("デフォルト設定: backend={0}, overwrite={1}, dpi={2}, optimize={3}, jpeg_quality={4}, max_long_edge={5}, png_threshold_mb={6}" -f $defaultBackend, $defaultOverwrite, $defaultDpi, $defaultOptimize, $defaultJpegQuality, $defaultMaxLongEdge, $defaultThresholdMb)
 Write-Host ""
 Write-Host "Enterだけでデフォルト実行。設定を変えたい場合は以下を選択:"
 Write-Host "  1) img2pdf方式で実行（デフォルト値）"
@@ -265,6 +268,7 @@ if (-not $RunDefault) {
 }
 
 $method = $defaultMethod
+$backend = $defaultBackend
 $overwrite = $defaultOverwrite
 $dpi = $defaultDpi
 $optimize = $defaultOptimize
@@ -286,6 +290,10 @@ if ($choice -eq '1') {
     $overwrite = Parse-Bool -Value $overwriteRaw -Default $defaultOverwrite
 
     if ($method -eq 'img2pdf') {
+        $backend = Read-LineDefault -Prompt "バックエンド (img2pdf/pikepdf)" -Default $defaultBackend
+        $backend = $backend.Trim().ToLowerInvariant()
+        if ($backend -notin @('img2pdf','pikepdf')) { $backend = $defaultBackend }
+
         $dpi = Parse-Int -Value (Read-LineDefault -Prompt "DPI（PDF上の物理サイズ計算用）" -Default ([string]$defaultDpi)) -Default $defaultDpi
         $optimize = Read-LineDefault -Prompt "optimize-mode (lossless/auto/size)" -Default $defaultOptimize
         $optimize = $optimize.Trim().ToLowerInvariant()
@@ -336,6 +344,7 @@ if (-not (Test-Path -LiteralPath $py)) {
 $argsList = @(
     $inputDir,
     $outputDir,
+    '--backend', [string]$backend,
     '--dpi', [string]$dpi,
     '--optimize-mode', [string]$optimize,
     '--jpeg-quality', [string]$jpegQuality,

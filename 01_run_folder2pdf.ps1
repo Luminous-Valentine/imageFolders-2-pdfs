@@ -133,6 +133,11 @@ $scriptRoot = Get-ScriptRoot
 $configPath = Ensure-SettingsFile -ScriptRoot $scriptRoot
 $config = Read-ReferencePaths -ConfigPath $configPath
 
+$backend = $config['FOLDER2PDF_BACKEND']
+if ([string]::IsNullOrWhiteSpace($backend)) { $backend = 'img2pdf' }
+$backend = $backend.Trim().ToLowerInvariant()
+if ($backend -notin @('img2pdf','pikepdf')) { $backend = 'img2pdf' }
+
 if (-not $InputDir) {
     $inputValue = $config['INPUT_DIR']
     if ([string]::IsNullOrWhiteSpace($inputValue)) { $inputValue = '01_images_input' }
@@ -151,7 +156,8 @@ $py = Join-Path $scriptRoot 'src\\folder2pdf.py'
 
 Write-Host ("INFO: Input directory: {0}" -f $InputDir)
 Write-Host ("INFO: Output directory: {0}" -f $OutputDir)
+Write-Host ("INFO: Backend: {0}" -f $backend)
 
-& python $py $InputDir $OutputDir
+& python $py $InputDir $OutputDir --ref $configPath --backend $backend
 $exitCode = $LASTEXITCODE
 if ($exitCode -ne 0) { exit $exitCode }

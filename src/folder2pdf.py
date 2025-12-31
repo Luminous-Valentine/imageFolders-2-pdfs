@@ -24,6 +24,11 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 import img2pdf
 
 try:
+    import pikepdf
+except Exception:  # pragma: no cover
+    pikepdf = None  # type: ignore[assignment]
+
+try:
     from PIL import Image, ImageOps
 except Exception as exc:  # pragma: no cover
     raise RuntimeError("Pillow is required: pip install pillow") from exc
@@ -171,6 +176,10 @@ def gather_images(folder: Path) -> List[Path]:
     return sorted(images, key=lambda p: natural_key(p.name))
 
 
+def px_to_pt(px: int, dpi: int) -> float:
+    return float(img2pdf.px_to_pt(int(px), int(dpi)))
+
+
 def _read_text_with_fallback(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8-sig")
@@ -289,6 +298,15 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         default=None,
         help="Optional text file containing target folder paths (one per line).",
     )
+    parser.add_argument(
+        "--backend",
+        choices=("img2pdf", "pikepdf"),
+        default="img2pdf",
+        help=(
+            'PDF generation backend. "img2pdf" (default) is recommended. '
+            '"pikepdf" is a JPEG-focused backend that embeds JPEG bytes as-is (requires pikepdf).'
+        ),
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing PDFs.")
     parser.add_argument("--dpi", type=int, default=300, help="DPI used to determine PDF page size (default: 300).")
     parser.add_argument(
@@ -338,7 +356,18 @@ def write_atomic(path: Path, data: bytes) -> None:
     tmp.replace(path)
 
 
-def convert_folder_to_pdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions) -> None:
+def write_atomic_from_file(path: Path, tmp_path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if tmp_path.resolve() == path.resolve():
+        return
+    target_tmp = path.with_suffix(path.suffix + ".tmp")
+    if target_tmp.exists():
+        target_tmp.unlink()
+    tmp_path.replace(target_tmp)
+    target_tmp.replace(path)
+
+
+def convert_folder_to_pdf_img2pdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions) -> None:
     images = gather_images(folder)
     if not images:
         raise ValueError("no images found")
@@ -351,6 +380,87 @@ def convert_folder_to_pdf(folder: Path, *, output_pdf: Path, opts: ConvertOption
 
         pdf_bytes = img2pdf.convert(prepared, layout_fun=page_layout_fun(opts.dpi))
         write_atomic(output_pdf, pdf_bytes)
+
+
+def _jpeg_colorspace(mode: str) -> str:
+    if mode == "L":
+        return "/DeviceGray"
+    if mode == "RGB":
+        return "/DeviceRGB"
+    if mode == "CMYK":
+        return "/DeviceCMYK"
+    return "/DeviceRGB"
+
+
+def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions) -> None:
+    if pikepdf is None:  # pragma: no cover
+        raise RuntimeError('pikepdf is not available. Install it with: pip install pikepdf')
+
+    images = gather_images(folder)
+    if not images:
+        raise ValueError("no images found")
+
+    # This backend is intended for JPEG-only folders: embed JPEG bytes as-is with /DCTDecode.
+    for img_path in images:
+        if img_path.suffix.lower() not in (".jpg", ".jpeg"):
+            raise ValueError(f"pikepdf backend supports JPEG only: {img_path.name}")
+
+    with TemporaryDirectory(prefix="folder2pdf_pikepdf_") as td:
+        tmp_dir = Path(td)
+        tmp_pdf = tmp_dir / "out.pdf"
+
+        pdf = pikepdf.Pdf.new()
+
+        for index, img_path in enumerate(images, start=1):
+            with Image.open(img_path) as img:
+                width_px, height_px = img.size
+                if width_px <= 0 or height_px <= 0:
+                    raise ValueError(f"invalid image size: {img_path.name}")
+                color_space = _jpeg_colorspace(getattr(img, "mode", "") or "RGB")
+
+            w_pt = px_to_pt(width_px, opts.dpi)
+            h_pt = px_to_pt(height_px, opts.dpi)
+
+            img_bytes = img_path.read_bytes()
+            xobj = pikepdf.Stream(
+                pdf,
+                img_bytes,
+                Type=pikepdf.Name("/XObject"),
+                Subtype=pikepdf.Name("/Image"),
+                Width=int(width_px),
+                Height=int(height_px),
+                ColorSpace=pikepdf.Name(color_space),
+                BitsPerComponent=8,
+                Filter=pikepdf.Name("/DCTDecode"),
+            )
+
+            xname = f"/Im{index}"
+            resources = pikepdf.Dictionary(XObject=pikepdf.Dictionary({xname: xobj}))
+            contents = pikepdf.Stream(
+                pdf,
+                f"q\n{w_pt:.6f} 0 0 {h_pt:.6f} 0 0 cm\n{xname} Do\nQ\n".encode("ascii"),
+            )
+
+            page = pikepdf.Page(
+                pikepdf.Dictionary(
+                    Type=pikepdf.Name("/Page"),
+                    MediaBox=pikepdf.Array([0, 0, w_pt, h_pt]),
+                    Resources=resources,
+                    Contents=contents,
+                )
+            )
+            pdf.pages.append(page)
+
+        pdf.save(tmp_pdf)
+        write_atomic_from_file(output_pdf, tmp_pdf)
+
+
+def convert_folder_to_pdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions, backend: str) -> None:
+    if backend == "img2pdf":
+        return convert_folder_to_pdf_img2pdf(folder, output_pdf=output_pdf, opts=opts)
+    if backend == "pikepdf":
+        return convert_folder_to_pdf_pikepdf(folder, output_pdf=output_pdf, opts=opts)
+    raise ValueError(f"unknown backend: {backend}")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -418,7 +528,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[INFO] input_dir={input_dir}")
     print(f"[INFO] output_dir={output_dir}")
     print(f"[INFO] folders={len(folders)}")
-    print(f"[INFO] dpi={opts.dpi} optimize_mode={opts.optimize_mode} jpeg_quality={opts.jpeg_quality}")
+    print(f"[INFO] backend={args.backend} dpi={opts.dpi} optimize_mode={opts.optimize_mode} jpeg_quality={opts.jpeg_quality}")
 
     used_out_names: dict[str, int] = {}
 
@@ -445,7 +555,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 summary.skipped += 1
                 continue
 
-            convert_folder_to_pdf(folder, output_pdf=out_path, opts=opts)
+            convert_folder_to_pdf(folder, output_pdf=out_path, opts=opts, backend=str(args.backend))
             print(f"[OK] {folder.name} -> {out_path.name} ({len(images)} images)")
             summary.ok += 1
         except Exception as exc:
