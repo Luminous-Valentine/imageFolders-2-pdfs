@@ -237,6 +237,9 @@ if ($defaultMethod -notin @('img2pdf','carrier')) { $defaultMethod = 'img2pdf' }
 $defaultBackend = (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_BACKEND' -Default 'img2pdf').Trim().ToLowerInvariant()
 if ($defaultBackend -notin @('img2pdf','pikepdf')) { $defaultBackend = 'img2pdf' }
 
+$defaultPikepdfInterpolate = Parse-Bool -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_PIKEPDF_INTERPOLATE' -Default 'false') -Default $false
+$defaultPikepdfPng = Parse-Bool -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_PIKEPDF_FORCE_PNG' -Default 'false') -Default $false
+
 $defaultOverwrite = Parse-Bool -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_OVERWRITE' -Default 'false') -Default $false
 $defaultDpi = Parse-Int -Value (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_DPI' -Default '300') -Default 300
 $defaultOptimize = (Get-ConfigValue -Config $config -Key 'FOLDER2PDF_OPTIMIZE_MODE' -Default 'auto').Trim().ToLowerInvariant()
@@ -252,7 +255,7 @@ Write-Host ("INPUT_DIR : {0}" -f $inputDir)
 Write-Host ("OUTPUT_DIR: {0}" -f $outputDir)
 Write-Host ""
 Write-Host ("デフォルト方式: {0}" -f $defaultMethod)
-Write-Host ("デフォルト設定: backend={0}, overwrite={1}, dpi={2}, optimize={3}, jpeg_quality={4}, max_long_edge={5}, png_threshold_mb={6}" -f $defaultBackend, $defaultOverwrite, $defaultDpi, $defaultOptimize, $defaultJpegQuality, $defaultMaxLongEdge, $defaultThresholdMb)
+Write-Host ("デフォルト設定: backend={0}, overwrite={1}, dpi={2}, optimize={3}, jpeg_quality={4}, max_long_edge={5}, png_threshold_mb={6}, pikepdf_interpolate={7}, pikepdf_png={8}" -f $defaultBackend, $defaultOverwrite, $defaultDpi, $defaultOptimize, $defaultJpegQuality, $defaultMaxLongEdge, $defaultThresholdMb, $defaultPikepdfInterpolate, $defaultPikepdfPng)
 Write-Host ""
 Write-Host "Enterだけでデフォルト実行。設定を変えたい場合は以下を選択:"
 Write-Host "  1) img2pdf方式で実行（デフォルト値）"
@@ -269,6 +272,8 @@ if (-not $RunDefault) {
 
 $method = $defaultMethod
 $backend = $defaultBackend
+$pikepdfInterpolate = $defaultPikepdfInterpolate
+$pikepdfPng = $defaultPikepdfPng
 $overwrite = $defaultOverwrite
 $dpi = $defaultDpi
 $optimize = $defaultOptimize
@@ -293,6 +298,14 @@ if ($choice -eq '1') {
         $backend = Read-LineDefault -Prompt "バックエンド (img2pdf/pikepdf)" -Default $defaultBackend
         $backend = $backend.Trim().ToLowerInvariant()
         if ($backend -notin @('img2pdf','pikepdf')) { $backend = $defaultBackend }
+
+        if ($backend -eq 'pikepdf') {
+            $pikepdfInterpolate = Parse-Bool -Value (Read-LineDefault -Prompt "pikepdf: /Interpolate を有効にする？ (y/n)" -Default ($(if ($defaultPikepdfInterpolate) { 'y' } else { 'n' }))) -Default $defaultPikepdfInterpolate
+            $pikepdfPng = Parse-Bool -Value (Read-LineDefault -Prompt "pikepdf: JPEGも可逆(PNG相当)で埋め込む？ (y/n)" -Default ($(if ($defaultPikepdfPng) { 'y' } else { 'n' }))) -Default $defaultPikepdfPng
+        } else {
+            $pikepdfInterpolate = $defaultPikepdfInterpolate
+            $pikepdfPng = $defaultPikepdfPng
+        }
 
         $dpi = Parse-Int -Value (Read-LineDefault -Prompt "DPI（PDF上の物理サイズ計算用）" -Default ([string]$defaultDpi)) -Default $defaultDpi
         $optimize = Read-LineDefault -Prompt "optimize-mode (lossless/auto/size)" -Default $defaultOptimize
@@ -353,6 +366,10 @@ $argsList = @(
 )
 if ($overwrite) { $argsList += '--overwrite' }
 if ($foldersFile) { $argsList += @('--folders-file', $foldersFile) }
+if ($backend -eq 'pikepdf') {
+    if ($pikepdfInterpolate) { $argsList += '--pikepdf-interpolate' }
+    if ($pikepdfPng) { $argsList += '--pikepdf-png' }
+}
 
 try {
     & python $py @argsList

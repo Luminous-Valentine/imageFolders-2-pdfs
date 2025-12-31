@@ -54,6 +54,8 @@ pip install -r requirements.txt
 - `OUTPUT_DIR`: 画像→PDFの出力フォルダ
 - `FOLDER2PDF_DEFAULT_METHOD`: `01_images_to_pdf.bat` のデフォルト方式（`img2pdf` / `carrier`）
 - `FOLDER2PDF_BACKEND`: img2pdf方式のPDF生成バックエンド（`img2pdf` / `pikepdf`）
+- `FOLDER2PDF_PIKEPDF_INTERPOLATE`: pikepdf時に `/Interpolate true` を付けて表示補間を滑らかにする（`true/false`）
+- `FOLDER2PDF_PIKEPDF_FORCE_PNG`: pikepdf時に JPEG も可逆(PNG相当)で埋め込む（`true/false`、サイズ増加）
 - `FOLDER2PDF_OVERWRITE`: 画像→PDFで既存PDFを上書きするか（`true/false`）
 - `FOLDER2PDF_DPI`: img2pdf方式のデフォルトDPI（PDF上の物理サイズ計算用）
 - `FOLDER2PDF_OPTIMIZE_MODE`: img2pdf方式のデフォルト（`lossless/auto/size`）
@@ -141,6 +143,11 @@ pip install -r requirements.txt
 
 - `--dpi`（デフォルト300）: PDF上の物理サイズ（mm相当）を決めるために使います
 - 画像を縮小する必要がある場合は `auto/size` の再エンコード設定の一部として行われます
+
+pikepdfバックエンド専用の表示/可逆オプション:
+
+- `--pikepdf-interpolate`: PDF上の画像に `/Interpolate true` を付け、ビューアの拡大縮小時に滑らかに描画するヒントを与えます（画像データは無変化）
+- `--pikepdf-png`: JPEGも一度デコードして可逆(PNG相当)で埋め込みます（サイズは増えやすい）
 
 ### 拡張：Carrier方式（テンプレ差し替え）
 

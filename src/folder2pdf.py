@@ -16,6 +16,7 @@ import argparse
 import locale
 import re
 import sys
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -81,6 +82,8 @@ class ConvertOptions:
     jpeg_quality: int
     max_long_edge: int
     auto_reencode_threshold_bytes: int
+    pikepdf_interpolate: bool = False
+    pikepdf_force_png: bool = False
 
 
 def page_layout_fun(dpi: int):
@@ -307,6 +310,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
             '"pikepdf" is a JPEG-focused backend that embeds JPEG bytes as-is (requires pikepdf).'
         ),
     )
+    parser.add_argument(
+        "--pikepdf-interpolate",
+        action="store_true",
+        help="(pikepdf only) Set /Interpolate true on images to hint smooth scaling in viewers.",
+    )
+    parser.add_argument(
+        "--pikepdf-png",
+        action="store_true",
+        help="(pikepdf only) Decode images and embed lossless (PNG-like) instead of embedding JPEG as-is.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing PDFs.")
     parser.add_argument("--dpi", type=int, default=300, help="DPI used to determine PDF page size (default: 300).")
     parser.add_argument(
@@ -392,6 +405,16 @@ def _jpeg_colorspace(mode: str) -> str:
     return "/DeviceRGB"
 
 
+def _flatten_image_for_png(img: Image.Image) -> Tuple[Image.Image, str, int]:
+    img = ImageOps.exif_transpose(img)
+    if img.mode == "RGB":
+        return img, "/DeviceRGB", 3
+    if img.mode == "L":
+        return img, "/DeviceGray", 1
+    # Palette/CMYKなどはRGBに寄せる
+    return img.convert("RGB"), "/DeviceRGB", 3
+
+
 def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: ConvertOptions) -> None:
     if pikepdf is None:  # pragma: no cover
         raise RuntimeError('pikepdf is not available. Install it with: pip install pikepdf')
@@ -400,10 +423,11 @@ def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: Conve
     if not images:
         raise ValueError("no images found")
 
-    # This backend is intended for JPEG-only folders: embed JPEG bytes as-is with /DCTDecode.
-    for img_path in images:
-        if img_path.suffix.lower() not in (".jpg", ".jpeg"):
-            raise ValueError(f"pikepdf backend supports JPEG only: {img_path.name}")
+    # When not converting to PNG, we expect JPEG-only folders and embed JPEG bytes as-is.
+    if not opts.pikepdf_force_png:
+        for img_path in images:
+            if img_path.suffix.lower() not in (".jpg", ".jpeg"):
+                raise ValueError(f"pikepdf backend supports JPEG only: {img_path.name}")
 
     with TemporaryDirectory(prefix="folder2pdf_pikepdf_") as td:
         tmp_dir = Path(td)
@@ -416,39 +440,62 @@ def convert_folder_to_pdf_pikepdf(folder: Path, *, output_pdf: Path, opts: Conve
                 width_px, height_px = img.size
                 if width_px <= 0 or height_px <= 0:
                     raise ValueError(f"invalid image size: {img_path.name}")
-                color_space = _jpeg_colorspace(getattr(img, "mode", "") or "RGB")
+
+                if opts.pikepdf_force_png:
+                    # 可逆(PNG相当)で埋め込む
+                    prepared, colorspace, colors = _flatten_image_for_png(img)
+                    raw = prepared.tobytes()
+                    compressed = zlib.compress(raw)
+                    xobj = pikepdf.Stream(pdf, compressed)
+                    xobj["/Type"] = pikepdf.Name("/XObject")
+                    xobj["/Subtype"] = pikepdf.Name("/Image")
+                    xobj["/Width"] = int(width_px)
+                    xobj["/Height"] = int(height_px)
+                    xobj["/ColorSpace"] = pikepdf.Name(colorspace)
+                    xobj["/BitsPerComponent"] = 8
+                    xobj["/Filter"] = pikepdf.Name("/FlateDecode")
+                    xobj["/DecodeParms"] = pikepdf.Dictionary(
+                        {
+                            "/Predictor": 15,
+                            "/Colors": int(colors),
+                            "/BitsPerComponent": 8,
+                            "/Columns": int(width_px),
+                        }
+                    )
+                else:
+                    color_space = _jpeg_colorspace(getattr(img, "mode", "") or "RGB")
+                    img_bytes = img_path.read_bytes()
+                    xobj = pikepdf.Stream(pdf, img_bytes)
+                    xobj["/Type"] = pikepdf.Name("/XObject")
+                    xobj["/Subtype"] = pikepdf.Name("/Image")
+                    xobj["/Width"] = int(width_px)
+                    xobj["/Height"] = int(height_px)
+                    xobj["/ColorSpace"] = pikepdf.Name(color_space)
+                    xobj["/BitsPerComponent"] = 8
+                    xobj["/Filter"] = pikepdf.Name("/DCTDecode")
+
+                if opts.pikepdf_interpolate:
+                    xobj["/Interpolate"] = True
 
             w_pt = px_to_pt(width_px, opts.dpi)
             h_pt = px_to_pt(height_px, opts.dpi)
 
-            img_bytes = img_path.read_bytes()
-            xobj = pikepdf.Stream(
-                pdf,
-                img_bytes,
-                Type=pikepdf.Name("/XObject"),
-                Subtype=pikepdf.Name("/Image"),
-                Width=int(width_px),
-                Height=int(height_px),
-                ColorSpace=pikepdf.Name(color_space),
-                BitsPerComponent=8,
-                Filter=pikepdf.Name("/DCTDecode"),
-            )
-
             xname = f"/Im{index}"
-            resources = pikepdf.Dictionary(XObject=pikepdf.Dictionary({xname: xobj}))
+            resources = pikepdf.Dictionary({"/XObject": pikepdf.Dictionary({xname: xobj})})
             contents = pikepdf.Stream(
                 pdf,
                 f"q\n{w_pt:.6f} 0 0 {h_pt:.6f} 0 0 cm\n{xname} Do\nQ\n".encode("ascii"),
             )
 
-            page = pikepdf.Page(
-                pikepdf.Dictionary(
-                    Type=pikepdf.Name("/Page"),
-                    MediaBox=pikepdf.Array([0, 0, w_pt, h_pt]),
-                    Resources=resources,
-                    Contents=contents,
-                )
+            page_dict = pikepdf.Dictionary(
+                {
+                    "/Type": pikepdf.Name("/Page"),
+                    "/MediaBox": pikepdf.Array([0, 0, w_pt, h_pt]),
+                    "/Resources": resources,
+                    "/Contents": contents,
+                }
             )
+            page = pikepdf.Page(page_dict)
             pdf.pages.append(page)
 
         pdf.save(tmp_pdf)
@@ -520,6 +567,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         jpeg_quality=max(1, min(100, int(args.jpeg_quality))),
         max_long_edge=int(args.max_long_edge),
         auto_reencode_threshold_bytes=int(float(args.auto_reencode_threshold_mb) * 1024 * 1024),
+        pikepdf_interpolate=bool(args.pikepdf_interpolate),
+        pikepdf_force_png=bool(args.pikepdf_png),
     )
 
     folders = explicit_folders if explicit_folders is not None else gather_folders(input_dir)
@@ -528,7 +577,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(f"[INFO] input_dir={input_dir}")
     print(f"[INFO] output_dir={output_dir}")
     print(f"[INFO] folders={len(folders)}")
-    print(f"[INFO] backend={args.backend} dpi={opts.dpi} optimize_mode={opts.optimize_mode} jpeg_quality={opts.jpeg_quality}")
+    extra = ""
+    if args.backend == "pikepdf":
+        extra = f" interpolate={opts.pikepdf_interpolate} png_embed={opts.pikepdf_force_png}"
+    print(
+        f"[INFO] backend={args.backend} dpi={opts.dpi} optimize_mode={opts.optimize_mode} jpeg_quality={opts.jpeg_quality}{extra}"
+    )
 
     used_out_names: dict[str, int] = {}
 

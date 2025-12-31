@@ -24,6 +24,16 @@ FOLDER2PDF_DEFAULT_METHOD=img2pdf
 #   値: img2pdf（推奨/デフォルト） / pikepdf（JPEGをそのまま埋め込み。比較用）
 FOLDER2PDF_BACKEND=img2pdf
 #
+# FOLDER2PDF_PIKEPDF_INTERPOLATE:
+#   役割: pikepdfバックエンドで、PDF表示時の拡大縮小を滑らかにするヒント(/Interpolate)を付ける。
+#   値: true / false（デフォルト: false）
+FOLDER2PDF_PIKEPDF_INTERPOLATE=false
+#
+# FOLDER2PDF_PIKEPDF_FORCE_PNG:
+#   役割: pikepdfバックエンドで、JPEGも一度デコードして可逆(PNG相当)で埋め込む（サイズ増加）。
+#   値: true / false（デフォルト: false）
+FOLDER2PDF_PIKEPDF_FORCE_PNG=false
+#
 # FOLDER2PDF_OVERWRITE:
 #   役割: 既存PDFを上書きするか（true/false）。
 FOLDER2PDF_OVERWRITE=false

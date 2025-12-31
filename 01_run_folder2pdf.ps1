@@ -138,6 +138,9 @@ if ([string]::IsNullOrWhiteSpace($backend)) { $backend = 'img2pdf' }
 $backend = $backend.Trim().ToLowerInvariant()
 if ($backend -notin @('img2pdf','pikepdf')) { $backend = 'img2pdf' }
 
+$pikepdfInterpolate = Parse-Bool -Value ($config['FOLDER2PDF_PIKEPDF_INTERPOLATE']) -Default $false
+$pikepdfPng = Parse-Bool -Value ($config['FOLDER2PDF_PIKEPDF_FORCE_PNG']) -Default $false
+
 if (-not $InputDir) {
     $inputValue = $config['INPUT_DIR']
     if ([string]::IsNullOrWhiteSpace($inputValue)) { $inputValue = '01_images_input' }
@@ -158,6 +161,12 @@ Write-Host ("INFO: Input directory: {0}" -f $InputDir)
 Write-Host ("INFO: Output directory: {0}" -f $OutputDir)
 Write-Host ("INFO: Backend: {0}" -f $backend)
 
-& python $py $InputDir $OutputDir --ref $configPath --backend $backend
+$argsList = @($InputDir, $OutputDir, '--ref', $configPath, '--backend', $backend)
+if ($backend -eq 'pikepdf') {
+    if ($pikepdfInterpolate) { $argsList += '--pikepdf-interpolate' }
+    if ($pikepdfPng) { $argsList += '--pikepdf-png' }
+}
+
+& python $py @argsList
 $exitCode = $LASTEXITCODE
 if ($exitCode -ne 0) { exit $exitCode }
